@@ -4,59 +4,69 @@ from barcode.writer import ImageWriter
 from PIL import Image
 from datetime import datetime
 
-# กำหนดชื่อโฟลเดอร์ตามวันที่และเวลา
+# Set folder name based on current date and time
 current_time = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
 ROOT_PATH = f'./barcode_image/{current_time}/'
 FILE_PATH_BARCODE = 'barcode_data.txt'
-SPACING = 50  # กำหนดความห่างระหว่างภาพ
+SPACING = 50  # Set spacing between images
 
 def ensure_directory_exists(path: str):
     if not os.path.exists(path):
         os.makedirs(path)
-        print(f"สร้างโฟลเดอร์ {path} เรียบร้อยแล้ว")
+        print(f"Folder {path} created successfully")
 
 def genbarcode(barcode_data: str, no: int) -> str:
     try:
-        # สร้างบาร์โค้ดในรูปแบบ Code 128
+        # Generate barcode in Code 128 format
         barcode_instance = Code128(barcode_data, writer=ImageWriter())
-        # บันทึกเป็นไฟล์รูปภาพในเส้นทางที่กำหนด
+        # Save the barcode image in the specified path
         filename = barcode_instance.save(f'{ROOT_PATH}barcode_{no}')
+        print(f"Barcode for {barcode_data} created at {filename}.png")
         return filename
     except Exception as e:
-        print(f"เกิดข้อผิดพลาดในการสร้างบาร์โค้ดสำหรับ {barcode_data}: {e}")
+        print(f"Error generating barcode for {barcode_data}: {e}")
         return None
 
 def read_and_generate_barcodes(file_path: str):
     barcode_list = []
     try:
+        if not os.path.exists(file_path):
+            print(f"File {file_path} not found")
+            return barcode_list
+
         with open(file_path, 'r') as file:
+            print(f"Reading file {file_path}")
             for line in file:
                 barcode_data = line.strip()
                 if barcode_data:
                     barcode_list.append(str(barcode_data))
+                    print(f"Added barcode data: {barcode_data}")
     except Exception as e:
-        print(f"เกิดข้อผิดพลาดในการอ่านไฟล์ {file_path}: {e}")
+        print(f"Error reading file {file_path}: {e}")
     return barcode_list
 
 def create_combined_image(image_files: list, output_file: str, width: int, height: int):
+    print(f"Creating combined image at {output_file}")
     images = [Image.open(img) for img in image_files]
 
-    # กำหนดขนาดของภาพรวม (เพิ่มช่องว่างระหว่างภาพ)
-    combined_width = width * 2 + SPACING  # 2 รูปในหนึ่งแถว + ความห่าง
-    combined_height = height * 2 + SPACING  # 2 แถว + ความห่าง
+    # Set size of combined image (adding spacing)
+    combined_width = width * 2 + SPACING  # 2 images in one row + spacing
+    combined_height = height * 2 + SPACING  # 2 rows + spacing
 
-    # สร้างภาพใหม่สำหรับการรวมภาพ
+    # Create new image for combining
     combined_image = Image.new('RGB', (combined_width, combined_height), (255, 255, 255))
 
-    # วางภาพบาร์โค้ดลงในภาพรวม
+    # Paste barcode images into the combined image
     for index, image in enumerate(images):
         x = (index % 2) * (width + SPACING)
         y = (index // 2) * (height + SPACING)
         combined_image.paste(image, (x, y))
+        print(f"Pasted image at position {(x, y)}")
 
     combined_image.save(output_file)
+    print(f"Combined image saved at {output_file}")
 
-    # ปิดไฟล์ภาพทั้งหมดหลังการรวม
+    # Close all images after combining
     for image in images:
         image.close()
 
@@ -65,23 +75,26 @@ def delete_files(files: list):
         if os.path.exists(file_path):
             try:
                 os.remove(file_path)
-                print(f"ไฟล์ {file_path} ถูกลบเรียบร้อยแล้ว")
+                print(f"File {file_path} deleted successfully")
             except Exception as e:
-                print(f"เกิดข้อผิดพลาดในการลบไฟล์ {file_path}: {e}")
+                print(f"Error deleting file {file_path}: {e}")
 
 if __name__ == "__main__":
+    print("Program started")
     ensure_directory_exists(ROOT_PATH)
 
     barcode_data_list = read_and_generate_barcodes(FILE_PATH_BARCODE)
-    num = 1
-    image_files = []
-    created_files = []
+    if not barcode_data_list:
+        print("No barcode data found in file or unable to read file")
+    else:
+        num = 1
+        image_files = []
+        created_files = []
 
-    if barcode_data_list:
         for code in barcode_data_list:
             filename = genbarcode(barcode_data=code, no=num)
             if filename:
-                print(f"บาร์โค้ดสำหรับ {code} ถูกบันทึกเป็นไฟล์: {filename}.png")
+                print(f"Barcode for {code} saved as file: {filename}.png")
                 image_files.append(filename)
                 created_files.append(filename)
             num += 1
@@ -103,9 +116,9 @@ if __name__ == "__main__":
                         created_files.append(blank_image_path)
                 output_file = f'{ROOT_PATH}combined_barcodes_{batch_number}.png'
                 create_combined_image(batch_files, output_file, width, height)
-                print(f"ภาพรวมบาร์โค้ดชุดที่ {batch_number} ถูกบันทึกเป็นไฟล์: {output_file}")
+                print(f"Combined barcode image batch {batch_number} saved as: {output_file}")
                 batch_number += 1
 
             delete_files(created_files)
         else:
-            print("ไม่มีข้อมูลบาร์โค้ดสำหรับการสร้างภาพรวม")
+            print("No barcode data available for creating combined image")
